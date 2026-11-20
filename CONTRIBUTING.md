@@ -42,7 +42,7 @@ Look for issues labelled `good first issue` or `help wanted` for places to start
 - Git
 - OpenMP
 - zlib
-- Python 3 with `numpy` (`pip3 install numpy`), to run `tests/compare.py`
+- Python 3 with `numpy` (`pip3 install numpy`), to run the tests in `tests/`
 
 For how to install the OpenMP and zlib dependencies on Linux and macOS, follow the
 [Installation section of the README](README.md#installation) rather than duplicating the steps
@@ -74,14 +74,27 @@ python3 compare.py
 
 ## Source layout
 
-The top level of `src` holds the Sanity-specific code: the three programs (`calc_true_variation_parallel_prior_mu_sigma.cpp`, `compute_distance.cpp`, `compute_gene_correlations.cpp`), the model fitting (`FitFrac`) and `Version.h`.
+The top level of `src` holds the Sanity-specific code: the three programs (`sanity_main.cpp`, `sanity_distance.cpp`, `sanity_gene_correlation.cpp`), the per-gene fit (`gene_fit`), the solver for the cell fractions at one gene variance (`fit_frac`) and `Version.h`.
+Comments say in a few words what each quantity is, and cite the equation numbers of the 2021 SI where it has them
+("SI Eq. 34").
+Within `gene_fit.cpp`, per-cell quantities are
+computed in passes over the cells rather than stored, and anything averaged over the variance grid (MARG) is
+accumulated bin by bin; keep it that way, and keep multithreaded runs bit-identical to `-n 1` (no reductions whose
+order depends on the thread count).
+`sanity_main.cpp` only ties the steps together; the steps of the main program live in their own files:
+
+- `sanity_options`: the command-line options, their parsing and the usage text.
+- `sanity_input`: the scan of the count matrix (sizes, totals, row positions and names).
+- `sanity_output`: the output folder, `sanity_command.txt`, and every output file in every output mode, including the text formatting.
+- `logging.hpp`: timestamped log messages.
+
 Generic helpers live in `src/helpers`:
 
-- `helpers/io`: readers and writers for the count matrices (TSV and MTX, plain or gzip), the dense row reader, the output formatting and writer, and the NPY writer.
+- `helpers/io`: readers and writers for the count matrices (TSV and MTX, plain or gzip), the dense row reader, the text/gzip writer and the NPY writer.
 - `helpers/math`: digamma/trigamma and the Lambert W function.
 
 Helpers do not depend on the top-level files.
-Includes are written relative to `src`, for example `#include "helpers/io/ReadInputFiles.h"`.
+Includes are written relative to `src`, for example `#include "helpers/io/read_input_files.hpp"`.
 
 ## Pull request process
 
@@ -129,8 +142,11 @@ the two makes a change very hard to review.
 ### Testing
 
 Sanity does not have a comprehensive test suite. `tests/compare.py` checks the output of a run
-against checked-in reference outputs for all four `-v_m` methods; see [tests/README.md](tests/README.md).
-Any change that is meant to be behaviour-preserving should leave those outputs identical. If you
+against checked-in reference outputs for all four `-v_m` methods, and `tests/compare_numpy_fit.py`
+checks it against an independent NumPy implementation of the fit's equations; see [tests/README.md](tests/README.md).
+Any change that is meant to be behaviour-preserving should leave the `compare.py` outputs identical; a change that
+alters the inference on purpose must pass `compare_numpy_fit.py` (adapted if the equations change) before the
+reference outputs are regenerated, and the commit that regenerates them should say so. If you
 add a feature or fix a bug, adding a test is very welcome.
 
 ## Community
